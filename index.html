@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <title>Albumok</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      background-color: #f8f8f8;
+    }
+    h1 {
+      color: #333;
+    }
+    form, .search-bar {
+      margin-bottom: 1rem;
+    }
+    input, button {
+      padding: 0.5rem;
+      margin-right: 0.5rem;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: white;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #eee;
+    }
+  </style>
+</head>
+<body>
+  <h1>Albumok</h1>
+
+  <div class="search-bar">
+    <input id="searchInput" placeholder="Keresés zenekarra...">
+    <button onclick="searchAlbums()">Keresés</button>
+    <button onclick="loadAlbums()">Összes album</button>
+  </div>
+
+  <form id="albumForm">
+    <input name="band" placeholder="Zenekar" required>
+    <input name="title" placeholder="Album címe" required>
+    <input name="year" type="number" placeholder="Megjelenés éve" required>
+    <input name="genre" placeholder="Műfaj" required>
+    <button type="submit">Hozzáadás</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Előadó</th>
+        <th>Album</th>
+        <th>Év</th>
+        <th>Műfaj</th>
+        <th>Művelet</th>
+      </tr>
+    </thead>
+    <tbody id="albumTableBody"></tbody>
+  </table>
+
+  <script>
+    let editId = null;
+
+    async function loadAlbums() {
+      const res = await fetch('/album');
+      const albums = await res.json();
+      renderAlbums(albums);
+    }
+
+    function renderAlbums(albums) {
+      const body = document.getElementById('albumTableBody');
+      body.innerHTML = '';
+      albums.forEach(album => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${album.band}</td>
+          <td>${album.title}</td>
+          <td>${album.year}</td>
+          <td>${album.genre}</td>
+          <td>
+            <button onclick="editAlbum(${album.id}, '${album.band}', '${album.title}', ${album.year}, '${album.genre}')">Szerkesztés</button>
+            <button onclick="deleteAlbum(${album.id})">Törlés</button>
+          </td>
+        `;
+        body.appendChild(row);
+      });
+    }
+
+    async function deleteAlbum(id) {
+      await fetch('/album/' + id, { method: 'DELETE' });
+      loadAlbums();
+    }
+
+    function editAlbum(id, band, title, year, genre) {
+      const form = document.getElementById('albumForm');
+      form.band.value = band;
+      form.title.value = title;
+      form.year.value = year;
+      form.genre.value = genre;
+      editId = id;
+
+      form.querySelector('button').textContent = 'Mentés';
+    }
+
+    document.getElementById('albumForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        band: formData.get('band'),
+        title: formData.get('title'),
+        year: +formData.get('year'),
+        genre: formData.get('genre')
+      };
+
+      if (editId !== null) {
+        await fetch('/album/' + editId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        editId = null;
+        e.target.querySelector('button').textContent = 'Hozzáadás';
+      } else {
+        await fetch('/album', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+      }
+
+      e.target.reset();
+      loadAlbums();
+    });
+
+    async function searchAlbums() {
+      const query = document.getElementById('searchInput').value;
+      if (!query) return loadAlbums();
+
+      const res = await fetch('/album/search/' + encodeURIComponent(query));
+      if (res.status !== 200) {
+        alert('Nem található ilyen zenekar.');
+        return;
+      }
+      const albums = await res.json();
+      renderAlbums(albums);
+    }
+
+    loadAlbums();
+  </script>
+</body>
+</html>
